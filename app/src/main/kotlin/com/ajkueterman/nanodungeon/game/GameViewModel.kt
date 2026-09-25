@@ -17,29 +17,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * One entry in the current scene's log: the model's [Scene], plus the choice
- * that led to it. [action] is null for the moment the player arrived.
- */
-data class Moment(val action: Choice?, val scene: Scene)
-
 sealed interface GameUiState {
     /** Waiting for the opening scene. */
     data object Starting : GameUiState
 
     /**
-     * The player is in a scene. [moments] is everything that has happened in
-     * this location, oldest first. The newest [Scene] supplies the choices.
-     * While [isThinking] is true, the next moment is being generated and the
-     * choices are disabled.
+     * The player is looking at [scene], which comes straight from the model.
+     * While [isThinking] is true, the next scene is being generated and the choices are disabled.
      */
-    data class Exploring(
-        val moments: List<Moment>,
-        val sceneNumber: Int,
-        val isThinking: Boolean = false,
-    ) : GameUiState {
-        val current: Scene get() = moments.last().scene
-    }
+    data class Exploring(val scene: Scene, val isThinking: Boolean = false) : GameUiState
 
     data class Error(val message: String) : GameUiState
 }
@@ -57,6 +43,15 @@ class GameViewModel @Inject constructor(
     /** Every choice made this run, oldest first. */
     private val trail = mutableListOf<Breadcrumb>()
 
+    /**
+     * The scene that described where the player is. It changes only on a "move".
+     * It's sent with every prompt so investigations stay consistent with the location.
+     */
+    private var location: Scene? = null
+
+    /** Investigations done at [location]. After [DungeonMasterPrompt.MAX_INVESTIGATIONS], only moves are offered. */
+    private var investigationsHere = 0
+
     /** The step to re-run when the player taps Retry. */
     private var lastStep: (suspend () -> Unit)? = null
 
@@ -70,28 +65,37 @@ class GameViewModel @Inject constructor(
         _state.value = GameUiState.Starting
         launchStep {
             val opening = dungeonMaster.openingScene(seed)
-            _state.value = GameUiState.Exploring(listOf(Moment(null, opening)), sceneNumber = 1)
+            location = opening
+            investigationsHere = 0
+            _state.value = GameUiState.Exploring(opening)
         }
     }
 
     fun choose(choice: Choice) {
         val exploring = _state.value as? GameUiState.Exploring ?: return
         if (exploring.isThinking) return
+        val current = exploring.scene
+        val here = location ?: current
         _state.update { exploring.copy(isThinking = true) }
         launchStep {
-            val scenesHere = exploring.moments.map { it.scene }
-            val next = dungeonMaster.nextScene(seed, trail.toList(), scenesHere, choice)
-            trail += Breadcrumb(exploring.current.title, choice.label)
-            _state.value = if (choice.isMove) {
-                // A new location: start a fresh log.
-                GameUiState.Exploring(listOf(Moment(choice, next)), exploring.sceneNumber + 1)
+            val next = dungeonMaster.nextScene(seed, trail.toList(), here, current, choice, investigationsHere)
+            trail += Breadcrumb(here.title, choice.label)
+            val scene = if (choice.isMove) {
+                location = next
+                investigationsHere = 0
+                next
             } else {
-                // Same location: add to the log. The title is pinned so it can't drift.
-                // Once the location is explored, keep only "move" choices, even if the model offered more.
-                val choices = if (DungeonMasterPrompt.isExplored(scenesHere)) next.choices.filter { it.isMove } else next.choices
-                val moment = Moment(choice, next.copy(title = exploring.current.title, choices = choices))
-                exploring.copy(moments = exploring.moments + moment, isThinking = false)
+                // The prompt asks the model to wrap up the last investigation, and this enforces it.
+                val choices = if (DungeonMasterPrompt.isLastInvestigation(investigationsHere)) {
+                    next.choices.filter { it.isMove }
+                } else {
+                    next.choices
+                }
+                investigationsHere++
+                // Still in the same place, so keep its title even if the model renamed it.
+                next.copy(title = here.title, choices = choices)
             }
+            _state.value = GameUiState.Exploring(scene)
         }
     }
 

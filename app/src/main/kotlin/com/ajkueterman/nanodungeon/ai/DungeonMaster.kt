@@ -96,12 +96,17 @@ class DungeonMaster @Inject constructor() {
         generateScene(DungeonMasterPrompt.openingPrompt(seed))
 
     /**
-     * Generates what happens after the player picks [choice]. [scene] holds every
-     * moment so far in the current location. A "move" choice gives a new location.
-     * An "investigate" choice gives the next moment in the same one.
+     * Generates what happens after the player picks [choice] in [current].
+     * [location] is the scene that described where the player is. See [DungeonMasterPrompt.nextPrompt].
      */
-    suspend fun nextScene(seed: String, trail: List<Breadcrumb>, scene: List<Scene>, choice: Choice): Scene =
-        generateScene(DungeonMasterPrompt.nextPrompt(seed, trail, scene, choice))
+    suspend fun nextScene(
+        seed: String,
+        trail: List<Breadcrumb>,
+        location: Scene,
+        current: Scene,
+        choice: Choice,
+        investigationsHere: Int,
+    ): Scene = generateScene(DungeonMasterPrompt.nextPrompt(seed, trail, location, current, choice, investigationsHere))
 
     /**
      * The structured-output call:
@@ -129,7 +134,7 @@ class DungeonMaster @Inject constructor() {
             try {
                 val response = inferenceMutex.withLock { model.generateContent(typedRequest) }
                 val candidate = response.candidates.firstOrNull()
-                val scene = candidate?.response
+                val scene = candidate?.response?.let { it.copy(choices = it.choices.distinctTargets()) }
                 // Also check the rules the schema can't express, e.g. that there's always a way out.
                 if (scene != null && scene.choices.size in 2..3 && scene.choices.any { it.isMove }) {
                     Log.d(TAG, "Scene: $scene")

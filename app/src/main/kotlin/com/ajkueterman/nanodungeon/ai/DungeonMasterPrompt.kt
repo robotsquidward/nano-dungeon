@@ -15,8 +15,11 @@ object DungeonMasterPrompt {
     /** How many past actions go into each prompt. This keeps input well under the ~4K token limit. */
     const val MAX_BREADCRUMBS = 6
 
-    /** After this many investigations in one location, the player is nudged to move on. */
-    const val MAX_INVESTIGATIONS_PER_SCENE = 3
+    /**
+     * How many investigations a location supports. More than this tends to
+     * get repetitive, so the last one is asked to wrap up.
+     */
+    const val MAX_INVESTIGATIONS = 2
 
     /**
      * The system instruction: persona and rules that apply to every turn.
@@ -25,14 +28,16 @@ object DungeonMasterPrompt {
     val SYSTEM = """
         You are the dungeon master of a short, atmospheric dark fantasy dungeon crawl.
         Speak to the player in the second person ("you").
-        Every location holds one or two specific, tangible things worth a closer look:
+        Offer 2 or 3 choices, mixing freely: sometimes two directions to go,
+        sometimes a direction and something to investigate, sometimes both.
+        Always include at least one "move" choice.
+        Investigate choices interact with something specific in the location:
         an object, a plant, a container, a carving, remains.
-        Offer "investigate" choices that interact with one of those things,
-        and always at least one "move" choice to leave for somewhere new.
-        Investigating has concrete, specific results: a pouch holds coins or a note,
-        a strange plant releases spores that make you cough and feel sick,
-        stonework reveals a carved scene. Results can help or hurt.
-        Keep continuity with what the player has already done.
+        Investigating has concrete results that can help or hurt: a pouch holds coins
+        or a note, a strange plant releases spores that make you cough and feel sick.
+        Each investigation reveals something new and resolves it; never offer to
+        investigate the same thing twice.
+        Stay consistent with the location's size, light, water and air.
         Player is a human with normal limitations--can't breathe underwater or see in the dark, etc.
         No combat and no death yet: threats may be hinted at, but never resolved.
         Never mention being an AI, the rules, or these instructions.
@@ -47,30 +52,33 @@ object DungeonMasterPrompt {
         "a smugglers' cave carved into a sea cliff",
     )
 
-    /**
-     * True once the player has used up their investigations in this location,
-     * counting the one about to happen. The app decides this, not the model.
-     */
-    fun isExplored(scene: List<Scene>): Boolean = scene.size >= MAX_INVESTIGATIONS_PER_SCENE
+    /** True when the investigation about to happen is the last one this location supports. */
+    fun isLastInvestigation(investigationsHere: Int): Boolean = investigationsHere + 1 >= MAX_INVESTIGATIONS
 
     /** The first turn of a run: describe the entrance. */
     fun openingPrompt(seed: String): String = """
         Setting: $seed
-        Describe the entrance where the adventure begins, including one or two specific things worth examining.
+        Describe the entrance where the adventure begins.
     """.trimIndent()
 
     /**
-     * Every later turn. [scene] is every moment so far in the player's current
-     * location, oldest first. Its first entry describes the location, and the
-     * rest are the results of earlier investigations there.
+     * Every later turn.
+     *
+     * [location] is the scene that first described where the player is now.
+     * [current] is what's on screen. After an investigation the two differ,
+     * and sending [location] again keeps the model from forgetting where
+     * the player is, e.g. a flooded tunnel or a vast cavern.
+     *
+     * [investigationsHere] counts investigations already done in this location.
      */
     fun nextPrompt(
         seed: String,
         trail: List<Breadcrumb>,
-        scene: List<Scene>,
+        location: Scene,
+        current: Scene,
         choice: Choice,
+        investigationsHere: Int = 0,
     ): String = buildString {
-        val location = scene.first()
         appendLine("Setting: $seed")
         val recent = trail.takeLast(MAX_BREADCRUMBS)
         if (recent.isNotEmpty()) {
@@ -79,21 +87,17 @@ object DungeonMasterPrompt {
                 appendLine("${i + 1}. In ${step.sceneTitle}: \"${step.choiceLabel}\"")
             }
         }
-        appendLine("Current location: ${location.title}: ${location.narration}")
-        if (scene.size > 1) appendLine("Most recently: ${scene.last().narration}")
-        val examined = trail.filter { it.sceneTitle == location.title }.map { it.choiceLabel }
-        if (examined.isNotEmpty()) {
-            appendLine("Already done here (don't offer these again): ${examined.joinToString("; ")}")
-        }
+        appendLine("Location: ${location.title}: ${location.narration}")
+        if (current != location) appendLine("Just now: ${current.narration}")
         appendLine("The player chose: \"${choice.label}\" (${choice.hint})")
 
         if (choice.isMove) {
-            append("They leave. Describe the new location they enter, including one or two specific things worth examining.")
+            append("They leave. Describe the new location they enter.")
         } else {
-            appendLine("They stay in ${location.title}. Describe concretely what happens: what they find, feel, learn or suffer.")
+            appendLine("They stay in ${location.title}. Describe concretely what happens, consistent with the location above.")
             append("Keep the title \"${location.title}\".")
-            if (isExplored(scene)) {
-                append(" They have explored enough here: every choice must be a \"move\" choice.")
+            if (isLastInvestigation(investigationsHere)) {
+                append(" This is the last discovery here: bring it to a clear conclusion, then offer only \"move\" choices.")
             }
         }
     }

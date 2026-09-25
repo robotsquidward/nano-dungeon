@@ -25,16 +25,29 @@ data class Scene(
     val narration: String,
 
     // A closed set of values the UI can switch on, so the model picks the card's color.
-    @Guide(description = "The overall feeling of this moment", enumValues = [MOOD_CALM, MOOD_EERIE, MOOD_DANGEROUS])
+    @Guide(
+        description = "The overall feeling of this moment",
+        enumValues = [MOOD_CALM, MOOD_EERIE, MOOD_DANGEROUS]
+    )
     val mood: String,
 
-    @Guide(description = "2 or 3 distinct things the player can do next. At least one must be a 'move' choice", minItems = 2, maxItems = 3)
+    // 2 or 3 buttons, in any mix of "move" and "investigate".
+    @Guide(
+        description = "2 or 3 distinct things the player can do next, in any mix of kinds, each about a different target. At least one must be a 'move' choice",
+        minItems = 2,
+        maxItems = 3
+    )
     val choices: List<Choice>,
 )
 
 /** Something the player can do next. Rendered as a button. */
 @Generable(description = "An action the player can take")
 data class Choice(
+    // Declared first so the model commits to *what* the choice is about before writing
+    // the label. The app also uses it to drop near-duplicate choices. See distinctTargets().
+    @Guide(description = "The one object or direction this choice is about, 1 to 3 words, e.g. 'leather pouch' or 'north tunnel'")
+    val target: String,
+
     @Guide(description = "Short imperative button label naming a specific thing, at most 6 words, e.g. 'Open the leather pouch'")
     val label: String,
 
@@ -50,6 +63,20 @@ data class Choice(
 )
 
 val Choice.isMove: Boolean get() = kind == KIND_MOVE
+
+/**
+ * Drops investigate choices about the same thing, e.g. "wooden table" and
+ * "rough-hewn table". Two targets match when their last word (the noun)
+ * matches. Moves are never dropped, because "north tunnel" and "south tunnel"
+ * really are different.
+ */
+fun List<Choice>.distinctTargets(): List<Choice> {
+    val seen = mutableSetOf<String>()
+    return filter { choice ->
+        val noun = choice.target.lowercase().split(Regex("[^a-z]+")).lastOrNull { it.isNotEmpty() }
+        choice.isMove || noun == null || seen.add(noun)
+    }
+}
 
 const val MOOD_CALM = "calm"
 const val MOOD_EERIE = "eerie"
