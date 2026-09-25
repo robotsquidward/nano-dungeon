@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch theme only; the real colors live in Compose (NanoDungeonTheme). -->
+    <style name="Theme.NanoDungeon" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF15110E</item>
+    </style>
+</resources>
