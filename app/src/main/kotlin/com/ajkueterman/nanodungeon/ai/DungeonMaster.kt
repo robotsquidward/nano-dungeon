@@ -91,13 +91,17 @@ class DungeonMaster @Inject constructor() {
         }
     }
 
-    /** Generates the first room of a new run. */
+    /** Generates the opening scene of a new run. */
     suspend fun openingScene(seed: String): Scene =
         generateScene(DungeonMasterPrompt.openingPrompt(seed))
 
-    /** Generates the room the player reaches after picking [choice] in [current]. */
-    suspend fun nextScene(seed: String, trail: List<Breadcrumb>, current: Scene, choice: Choice): Scene =
-        generateScene(DungeonMasterPrompt.nextPrompt(seed, trail, current, choice))
+    /**
+     * Generates what happens after the player picks [choice]. [scene] holds every
+     * moment so far in the current location. A "move" choice gives a new location.
+     * An "investigate" choice gives the next moment in the same one.
+     */
+    suspend fun nextScene(seed: String, trail: List<Breadcrumb>, scene: List<Scene>, choice: Choice): Scene =
+        generateScene(DungeonMasterPrompt.nextPrompt(seed, trail, scene, choice))
 
     /**
      * The structured-output call:
@@ -126,8 +130,8 @@ class DungeonMaster @Inject constructor() {
                 val response = inferenceMutex.withLock { model.generateContent(typedRequest) }
                 val candidate = response.candidates.firstOrNull()
                 val scene = candidate?.response
-                // Also check the list size here, in case a constraint slips through.
-                if (scene != null && scene.choices.size == 2) {
+                // Also check the rules the schema can't express, e.g. that there's always a way out.
+                if (scene != null && scene.choices.size in 2..3 && scene.choices.any { it.isMove }) {
                     Log.d(TAG, "Scene: $scene")
                     return@withContext scene
                 }
