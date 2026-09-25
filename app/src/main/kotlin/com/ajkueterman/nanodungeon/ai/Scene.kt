@@ -21,7 +21,7 @@ data class Scene(
     @Guide(description = "Evocative name of the current location, 2 to 5 words. Unchanged while the player stays in the same location")
     val title: String,
 
-    @Guide(description = "2 to 4 sentences of second-person narration of what the player experiences right now, with concrete sensory detail")
+    @Guide(description = "2 or 3 short sentences, at most 60 words, of second-person narration of what is new right now. Concrete details, no filler")
     val narration: String,
 
     // A closed set of values the UI can switch on, so the model picks the card's color.
