@@ -51,7 +51,7 @@ class DungeonMaster @Inject constructor() {
             modelConfig = ModelConfig.builder()
                 .apply {
                     releaseStage = ModelReleaseStage.PREVIEW
-                    preference = ModelPreference.FAST
+                    preference = ModelPreference.FULL
                 }
                 .build()
         },
@@ -115,7 +115,7 @@ class DungeonMaster @Inject constructor() {
             SystemInstruction(DungeonMasterPrompt.SYSTEM),
             TextPart(prompt),
         ) {
-            temperature = 0.8f
+            temperature = 1f
             candidateCount = 1
         }
         val typedRequest = generateTypedContentRequest(request, Scene::class)
