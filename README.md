@@ -2,10 +2,7 @@
 
 A tiny dungeon crawl where an on-device LLM is the dungeon master.
 
-It demonstrates the ML Kit GenAI **[Prompt API](https://developers.google.com/ml-kit/genai/prompt/android)**,
-and in particular **[structured output](https://developers.google.com/ml-kit/genai/prompt/android/structured-output)**.
-Gemini Nano returns a Kotlin data class instead of free text, and that object goes
-unchanged through a ViewModel into Compose.
+It demonstrates the ML Kit GenAI **[Prompt API](https://developers.google.com/ml-kit/genai/prompt/android)**, and in particular **[structured output](https://developers.google.com/ml-kit/genai/prompt/android/structured-output)**. Gemini Nano returns a Kotlin data class instead of free text, and that object goes unchanged through a ViewModel into Compose.
 
 Everything runs on device, using Gemini Nano 4 Preview.
 
