@@ -9,6 +9,10 @@ unchanged through a ViewModel into Compose.
 
 Everything runs on device, using Gemini Nano 4 Preview.
 
+## Demo
+
+⏯️ [Video Demo](https://www.youtube.com/shorts/bOp_3weo7I8) 🎬
+
 ## How it works
 
 ```
