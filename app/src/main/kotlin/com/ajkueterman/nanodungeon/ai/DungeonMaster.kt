@@ -79,6 +79,7 @@ class DungeonMaster @Inject constructor() {
                         _status.value = ModelStatus.Downloading
                         model.download().collect { Log.d(TAG, "Download: $it") }
                     }
+
                     else -> throw IOException("Gemini Nano isn't available on this device.")
                 }
                 model.warmup()
@@ -127,7 +128,10 @@ class DungeonMaster @Inject constructor() {
             temperature = 1f
             candidateCount = 1
         }
-        val typedRequest = generateTypedContentRequest(request, Scene::class)
+        val typedRequest = generateTypedContentRequest(
+            generateContentRequest = request,
+            outputClass = Scene::class,
+        )
 
         var lastError: Exception? = null
         repeat(MAX_ATTEMPTS) { attempt ->
